@@ -1,0 +1,15 @@
+{
+  "name": "groww-workspace-mcp",
+  "version": "1.0.0",
+  "description": "Custom Google Workspace MCP Server for Groww Weekly Review Pulse",
+  "type": "module",
+  "main": "index.js",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.6.0",
+    "googleapis": "^129.0.0",
+    "dotenv": "^16.3.1"
+  },
+  "scripts": {
+    "start": "node index.js"
+  }
+}
