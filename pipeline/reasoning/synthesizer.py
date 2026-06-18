@@ -93,8 +93,8 @@ def generate_report_json(clustered_reviews, iso_week):
     if has_api:
         try:
             logger.info("Connecting to Gemini LLM to synthesize review themes...")
-            # We will use gemini-1.5-flash or gemini-2.0-flash
-            model = genai.GenerativeModel("gemini-1.5-flash")
+            # We will use gemini-3.5-flash
+            model = genai.GenerativeModel("gemini-3.5-flash")
             
             for cid in sorted_cluster_ids[:3]: # Limit to top 3 themes for conciseness
                 reviews_in_cluster = clusters[cid]
@@ -134,8 +134,27 @@ def generate_report_json(clustered_reviews, iso_week):
                 
                 # Validate and correct quotes
                 validated_quotes = []
+                seen_quotes = set()
                 for q in theme_data.get("quotes", []):
-                    validated_quotes.append(validate_and_correct_quote(q, reviews_in_cluster))
+                    corrected = validate_and_correct_quote(q, reviews_in_cluster)
+                    if corrected not in seen_quotes:
+                        seen_quotes.add(corrected)
+                        validated_quotes.append(corrected)
+                
+                # If we have less than 3, try to fill with other unique reviews from the cluster
+                if len(validated_quotes) < 3:
+                    sorted_reviews = sorted(reviews_in_cluster, key=lambda r: len(r["review_text"]))
+                    for r in sorted_reviews:
+                        if len(validated_quotes) >= 3:
+                            break
+                        text_clean = r["review_text"].strip()
+                        if text_clean not in seen_quotes and len(text_clean) >= 15:
+                            validated_quotes.append(text_clean)
+                            seen_quotes.add(text_clean)
+                            
+                while len(validated_quotes) < 3 and reviews_in_cluster:
+                    validated_quotes.append(reviews_in_cluster[0]["review_text"].strip())
+                
                 theme_data["quotes"] = validated_quotes
                 
                 # Append severity based on average rating
@@ -200,13 +219,30 @@ def generate_report_json(clustered_reviews, iso_week):
                 theme_reviews = [r for r in clustered_reviews if r["rating"] <= 3][:5]
                 
             if theme_reviews:
-                # Validate and select verbatim quotes
-                raw_quotes = [r["review_text"] for r in theme_reviews[:3]]
-                validated_quotes = [validate_and_correct_quote(q, theme_reviews) for q in raw_quotes]
+                # Extract unique reviews to avoid duplicate quotes
+                unique_reviews = []
+                seen_texts = set()
+                for r in theme_reviews:
+                    text_clean = r["review_text"].strip()
+                    if text_clean not in seen_texts:
+                        seen_texts.add(text_clean)
+                        unique_reviews.append(r)
                 
-                # Fill missing quotes if needed
-                while len(validated_quotes) < 3 and theme_reviews:
-                    validated_quotes.append(theme_reviews[0]["review_text"])
+                # Validate and select verbatim quotes
+                raw_quotes = [r["review_text"] for r in unique_reviews[:3]]
+                validated_quotes = [validate_and_correct_quote(q, unique_reviews) for q in raw_quotes]
+                
+                # Fill missing quotes if needed from other unique reviews
+                if len(validated_quotes) < 3:
+                    for r in unique_reviews:
+                        if len(validated_quotes) >= 3:
+                            break
+                        text_clean = r["review_text"].strip()
+                        if text_clean not in validated_quotes:
+                            validated_quotes.append(text_clean)
+                
+                while len(validated_quotes) < 3 and unique_reviews:
+                    validated_quotes.append(unique_reviews[0]["review_text"].strip())
                 
                 avg_rating = sum(r["rating"] for r in theme_reviews) / len(theme_reviews)
                 severity = "HIGH" if avg_rating < 2.5 else "MEDIUM" if avg_rating < 4.0 else "LOW"

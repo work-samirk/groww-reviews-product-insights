@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 logger = logging.getLogger(__name__)
 
 # Groww Play Store Package Name
-GROWW_PLAY_STORE_ID = "com.groww.app"
+GROWW_PLAY_STORE_ID = "com.nextbillion.groww"
 
 def fetch_play_store_reviews(package_name=GROWW_PLAY_STORE_ID, limit_weeks=12):
     """
@@ -49,64 +49,45 @@ def fetch_play_store_reviews(package_name=GROWW_PLAY_STORE_ID, limit_weeks=12):
             logger.info(f"Successfully loaded {len(cache_reviews)} reviews from local scraper cache.")
             return cache_reviews
 
-    # 2. Generate realistic mock reviews spanning the last 12 weeks as fallback
-    now = datetime.now(timezone.utc)
-    mock_reviews = []
-    
-    # Authors list
-    authors = [
-        "Aarav Sharma", "Priya Patel", "Amit Verma", "Sneha Reddy", "Rohan Gupta", 
-        "Ananya Iyer", "Vikram Singh", "Deepika Rao", "Rahul Nair", "Neha Joshi",
-        "Suresh Kumar", "Kirti Deshmukh", "Manish Pandey", "Pooja Hegde", "Varun Mehta",
-        "Divya Teja", "Siddharth Jain", "Ritu Chaudhary", "Abhishek Sen", "Shreya Ghoshal"
-    ]
-    
-    # Real Groww issues catalogued by theme
-    issues = [
-        # Performance/Bugs (1-2 stars)
-        {"rating": 1, "text": "App is freezing exactly when the market opens at 9:15 AM! Lost 5000 Rs because I couldn't execute my trade. Please fix this lag, it crashes constantly during peak trading hours."},
-        {"rating": 2, "text": "Login session expires too frequently. Every time I open the app, it asks for PIN and OTP. Highly frustrating during live markets."},
-        {"rating": 1, "text": "Extremely slow charts! The candlesticks do not load on time. When I click buy, it keeps showing loading screen and then transaction fails. Not good for options trading."},
-        {"rating": 2, "text": "Too many lag issues after the recent update. The portfolio value shows wrong amount for a few minutes after logging in. Scares the user."},
+    # 2. Try scraping from Google Play Store using google-play-scraper
+    try:
+        from google_play_scraper import Sort, reviews as play_reviews
+        logger.info(f"Attempting to scrape Play Store reviews dynamically for package: {package_name}...")
         
-        # Support friction (1-3 stars)
-        {"rating": 1, "text": "Worst support experience. I raised a ticket for a failed deposit three days ago, and there is still no reply. The chatbot just loops without connecting to an agent."},
-        {"rating": 1, "text": "Money got deducted from my bank but not credited to the Groww wallet. Support team is not responding and their phone line is always busy. Unprofessional support."},
-        {"rating": 2, "text": "The app interface is nice but customer service is very poor. Tickets remain unresolved for weeks. Groww needs to improve its helpline service."},
+        # Fetch up to 1000 reviews to cover the year 2026
+        result, _ = play_reviews(
+            package_name,
+            lang='en',
+            country='in',
+            sort=Sort.NEWEST,
+            count=1000
+        )
         
-        # UX & Feature requests (3-4 stars)
-        {"rating": 3, "text": "Good app for mutual funds, but lacks advanced analytics for option chains. Please add better charting indicators and screeners for stocks."},
-        {"rating": 3, "text": "The navigation to portfolio insights is very confusing. It takes too many clicks to see the detailed annualized returns (CAGR)."},
-        {"rating": 4, "text": "Clean interface, beginner-friendly. But it would be great if we can download tax statement reports directly from the homepage instead of digging deep into profile settings."},
-        
-        # Positive reviews (4-5 stars)
-        {"rating": 5, "text": "Superb app for mutual fund SIP. I have been investing for 2 years without any issues. Direct mutual funds are completely free, which is awesome."},
-        {"rating": 5, "text": "Very easy to buy stocks and SIPs. Interface is very clean compared to other brokers. Highly recommend for beginners!"},
-        {"rating": 4, "text": "Good UI and fast KYC process. Completed my onboarding in 10 minutes. Sometimes logs out automatically, but overall a great app."},
-        {"rating": 5, "text": "Groww makes mutual fund investments so simple. The dashboard tracks everything and shows daily returns clearly. 5 stars."}
-    ]
+        if result:
+            logger.info(f"Scraped {len(result)} reviews from Google Play Store.")
+            scraped_reviews = []
+            for r in result:
+                date_str = r.get("at")
+                if hasattr(date_str, "isoformat"):
+                    date_str = date_str.isoformat()
+                
+                # Filter specifically for the year 2026
+                if not date_str.startswith("2026"):
+                    continue
+                
+                scraped_reviews.append({
+                    "id": f"playstore_{r.get('reviewId', '')}",
+                    "platform": "playstore",
+                    "author": r.get("userName", "Anonymous"),
+                    "date": date_str,
+                    "rating": int(r.get("score", 3)),
+                    "review_text": r.get("content", ""),
+                    "app_version": r.get("reviewCreatedVersion", "Unknown")
+                })
+            logger.info(f"Retained {len(scraped_reviews)} reviews from the year 2026.")
+            return scraped_reviews
+    except Exception as e:
+        logger.warning(f"Failed to scrape Google Play Store reviews: {e}.")
+        return []
 
-    # Generate about 30-40 reviews distributed across the last limit_weeks weeks
-    versions = ["3.0.12", "3.0.14", "3.0.15", "3.0.16"]
-    
-    for i in range(35):
-        author = random.choice(authors)
-        issue = random.choice(issues)
-        
-        # Distribute dates over the rolling window (e.g. 0 to limit_weeks weeks ago)
-        days_ago = random.randint(0, limit_weeks * 7 - 1)
-        hours_ago = random.randint(0, 23)
-        minutes_ago = random.randint(0, 59)
-        review_date = now - timedelta(days=days_ago, hours=hours_ago, minutes=minutes_ago)
-        
-        mock_reviews.append({
-            "id": f"playstore_{100000 + i}",
-            "platform": "playstore",
-            "author": f"{author} {random.randint(1, 99)}",
-            "date": review_date.isoformat(),
-            "rating": issue["rating"],
-            "review_text": issue["text"],
-            "app_version": random.choice(versions)
-        })
-        
-    return mock_reviews
+    return []
