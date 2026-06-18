@@ -43,7 +43,7 @@ interface MonthData {
   weeks: Week[];
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1/groww-product-insights";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8006/api/v1/groww-product-insights";
 
 export default function Dashboard() {
   // Navigation & Data States
@@ -133,7 +133,7 @@ export default function Dashboard() {
         }
       } catch (err: any) {
         console.error(err);
-        setError("Unable to connect to the backend server. Please verify it is running on port 8000.");
+        setError("Unable to connect to the backend server. Please verify it is running on port 8006.");
         setLoading(false);
       }
     }
