@@ -1,4 +1,5 @@
 import os
+os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "true"
 import sys
 import argparse
 import logging
@@ -115,7 +116,7 @@ def main():
     embeddings = get_embeddings(texts)
     logger.info(f"Embeddings matrix generated with shape: {embeddings.shape}")
     
-    clustered_reviews = perform_clustering(scrubbed_reviews)
+    clustered_reviews = perform_clustering(scrubbed_reviews, embeddings=embeddings)
     logger.info("Review clustering complete.")
     
     # 6. Reasoning: LLM Synthesis & Quote Validation

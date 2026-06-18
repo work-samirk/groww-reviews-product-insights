@@ -34,41 +34,28 @@ def configure_gemini():
 
 def get_embeddings(texts):
     """
-    Retrieves embeddings for a list of texts using Gemini's text-embedding-004 model.
-    Falls back to a TF-IDF vectorizer if the Gemini API key is missing.
+    Retrieves embeddings for a list of texts using local SentenceTransformer (all-MiniLM-L6-v2).
+    Falls back to a TF-IDF vectorizer if the model fails to load.
     """
     if not texts:
         return np.array([])
         
-    has_api = configure_gemini()
-    
-    if has_api:
-        try:
-            logger.info(f"Generating embeddings for {len(texts)} reviews using Gemini API...")
-            # Batch size for Gemini embeddings is typically 100
-            batch_size = 100
-            embeddings = []
+    try:
+        from sentence_transformers import SentenceTransformer
+        logger.info(f"Generating embeddings for {len(texts)} reviews using local SentenceTransformer (all-MiniLM-L6-v2)...")
+        model = SentenceTransformer("all-MiniLM-L6-v2")
+        embeddings = model.encode(texts, show_progress_bar=False)
+        return np.array(embeddings)
+    except Exception as e:
+        logger.error(f"Local SentenceTransformer embedding failed: {e}. Falling back to TF-IDF.")
             
-            for i in range(0, len(texts), batch_size):
-                batch = texts[i:i + batch_size]
-                response = genai.embed_content(
-                    model="text-embedding-004",
-                    content=batch,
-                    task_type="clustering"
-                )
-                embeddings.extend(response['embedding'])
-                
-            return np.array(embeddings)
-        except Exception as e:
-            logger.error(f"Gemini embedding API call failed: {e}. Falling back to TF-IDF.")
-            
-    # TF-IDF Fallback for local testing/dry-runs
+    # TF-IDF Fallback
     logger.info("Generating TF-IDF vectors as fallback embeddings...")
     vectorizer = TfidfVectorizer(max_features=100)
     vectors = vectorizer.fit_transform(texts).toarray()
     return vectors
 
-def perform_clustering(reviews, num_clusters=4):
+def perform_clustering(reviews, num_clusters=4, embeddings=None):
     """
     Performs dimensionality reduction and clustering on the provided list of reviews.
     Returns the reviews list with an added 'cluster_id' field.
@@ -76,8 +63,9 @@ def perform_clustering(reviews, num_clusters=4):
     if not reviews:
         return []
 
-    texts = [r["review_text"] for r in reviews]
-    embeddings = get_embeddings(texts)
+    if embeddings is None:
+        texts = [r["review_text"] for r in reviews]
+        embeddings = get_embeddings(texts)
     
     if len(embeddings) == 0:
         for r in reviews:
@@ -88,11 +76,13 @@ def perform_clustering(reviews, num_clusters=4):
     reduced_dims = None
     if HAS_UMAP and len(embeddings) > 15: # UMAP needs enough samples
         try:
+            import joblib
             logger.info("Running UMAP dimensionality reduction...")
             # n_neighbors must be less than sample size
             n_neighbors = min(15, len(embeddings) - 1)
-            reducer = umap.UMAP(n_neighbors=n_neighbors, n_components=2, random_state=42)
-            reduced_dims = reducer.fit_transform(embeddings)
+            with joblib.parallel_backend('threading'):
+                reducer = umap.UMAP(n_neighbors=n_neighbors, n_components=2, random_state=42)
+                reduced_dims = reducer.fit_transform(embeddings)
         except Exception as e:
             logger.warning(f"UMAP reduction failed: {e}. Falling back to TruncatedSVD.")
             
@@ -106,11 +96,13 @@ def perform_clustering(reviews, num_clusters=4):
     cluster_labels = None
     if HAS_HDBSCAN and len(reduced_dims) > 5:
         try:
+            import joblib
             logger.info("Running HDBSCAN clustering...")
             # min_cluster_size should scale with data size
             min_cluster_size = max(2, min(5, len(reduced_dims) // 4))
-            clusterer = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=1)
-            cluster_labels = clusterer.fit_predict(reduced_dims)
+            with joblib.parallel_backend('threading'):
+                clusterer = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=1)
+                cluster_labels = clusterer.fit_predict(reduced_dims)
         except Exception as e:
             logger.warning(f"HDBSCAN clustering failed: {e}. Falling back to KMeans.")
             
