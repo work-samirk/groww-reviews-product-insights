@@ -161,6 +161,7 @@ def generate_report_json(clustered_reviews, iso_week):
                 avg_rating = sum(r["rating"] for r in reviews_in_cluster) / len(reviews_in_cluster)
                 theme_data["severity"] = "HIGH" if avg_rating < 2.5 else "MEDIUM" if avg_rating < 4.0 else "LOW"
                 theme_data["review_count"] = len(reviews_in_cluster)
+                theme_data["cluster_id"] = cid
                 
                 themes.append(theme_data)
                 
@@ -253,7 +254,8 @@ def generate_report_json(clustered_reviews, iso_week):
                     "review_count": len(theme_reviews),
                     "summary": candidate["summary"],
                     "quotes": validated_quotes[:3],
-                    "action_ideas": candidate["action_ideas"]
+                    "action_ideas": candidate["action_ideas"],
+                    "cluster_id": theme_reviews[0]["cluster_id"] if theme_reviews else -1
                 })
                 
     # Format and return final report structure
