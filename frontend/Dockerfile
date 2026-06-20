@@ -17,7 +17,7 @@ COPY . .
 
 # Next.js collects completely anonymous telemetry data about general usage.
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV NEXT_PUBLIC_API_URL=http://localhost:8006/api/v1/groww-product-insights
+ENV NEXT_PUBLIC_API_URL=https://api.samir.pm/api/v1/groww-product-insights
 
 RUN npm run build
 
