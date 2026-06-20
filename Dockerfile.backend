@@ -1,0 +1,15 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Copy requirements and install
+COPY pipeline/requirements-backend.txt ./pipeline/requirements-backend.txt
+RUN pip install --no-cache-dir -r pipeline/requirements-backend.txt
+
+# Copy source and data
+COPY pipeline/ ./pipeline/
+COPY data/ ./data/
+
+EXPOSE 8006
+
+CMD ["uvicorn", "pipeline.api_server:app", "--host", "0.0.0.0", "--port", "8006"]

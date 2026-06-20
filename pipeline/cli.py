@@ -124,6 +124,22 @@ def main():
     report = generate_report_json(clustered_reviews, iso_week)
     logger.info("Insights generation complete.")
     
+    # Save the results to data/ directory for API consumption
+    import json
+    data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+    os.makedirs(os.path.join(data_dir, "reports"), exist_ok=True)
+    os.makedirs(os.path.join(data_dir, "reviews"), exist_ok=True)
+    
+    report_path = os.path.join(data_dir, "reports", f"{iso_week}.json")
+    with open(report_path, "w", encoding="utf-8") as f:
+        json.dump(report, f, indent=2, ensure_ascii=False)
+        
+    reviews_path = os.path.join(data_dir, "reviews", f"{iso_week}.json")
+    with open(reviews_path, "w", encoding="utf-8") as f:
+        json.dump(clustered_reviews, f, indent=2, ensure_ascii=False)
+        
+    logger.info(f"Saved week {iso_week} insights data locally for API server: {report_path} and {reviews_path}")
+    
     # 7. Check if dry-run
     if args.dry_run:
         import json
